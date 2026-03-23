@@ -5,6 +5,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.google.cloud.datastore.Query;
+import com.google.cloud.datastore.QueryResults;
 
 import org.apache.commons.codec.digest.DigestUtils;
 
@@ -29,157 +34,260 @@ import com.google.cloud.datastore.Entity;
 import com.google.gson.Gson;
 
 import pt.unl.fct.di.adc.firstwebapp.util.AuthToken;
+import pt.unl.fct.di.adc.firstwebapp.util.AuthenticatedRequest;
 import pt.unl.fct.di.adc.firstwebapp.util.CreateAccount;
 import pt.unl.fct.di.adc.firstwebapp.util.Errors;
 import pt.unl.fct.di.adc.firstwebapp.util.LoginData;
-import pt.unl.fct.di.adc.firstwebapp.util.CreateAccountRequest;
-import pt.unl.fct.di.adc.firstwebapp.util.LoginRequest;
+//import pt.unl.fct.di.adc.firstwebapp.util.CreateAccountRequest;
+import pt.unl.fct.di.adc.firstwebapp.util.DeleteAccountData;
+import pt.unl.fct.di.adc.firstwebapp.util.EmptyInput;
+//import pt.unl.fct.di.adc.firstwebapp.util.LoginRequest;
+import pt.unl.fct.di.adc.firstwebapp.util.OperationRequest;
+import pt.unl.fct.di.adc.firstwebapp.util.TokenData;
 
 @Path("/")
 public class AccountResource {
 
-    private static final Logger LOG = Logger.getLogger(AccountResource.class.getName());
+	private static final Logger LOG = Logger.getLogger(AccountResource.class.getName());
 
-    //private static final Datastore datastore = DatastoreOptions.getDefaultInstance().getService();
-    private static final Datastore datastore = DatastoreOptions.newBuilder()
-            .setProjectId("adc-pei-2526")
-            .build()
-            .getService();
+	// private static final Datastore datastore =
+	// DatastoreOptions.getDefaultInstance().getService();
+	private static final Datastore datastore = DatastoreOptions.newBuilder().setProjectId("adc-pei-2526").build()
+			.getService();
 
-    private final Gson g = new Gson();
-    
-    public AccountResource() {}
-    
-    @POST
-    @Path("/createaccount")
-    @Consumes(MediaType.APPLICATION_JSON)
-    public Response createAccount(CreateAccountRequest request) {
-    	
-        if (request == null || request.input == null || !request.input.isValidAccount()) {
-            return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
-        }
+	private final Gson g = new Gson();
 
-        CreateAccount account = request.input;
+	public AccountResource() {
+	}
 
-        try {
-            Key userKey = datastore.newKeyFactory().setKind("User").newKey(account.username);
+	@POST
+	@Path("/createaccount")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response createAccount(OperationRequest<CreateAccount> request) {
+		if (request == null || request.input == null || !request.input.isValidAccount()) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+		}
 
-            Entity existingUser = datastore.get(userKey);
-           
-            if (existingUser != null) {
-                return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_ALREADY_EXISTS, Errors.MSG_USER_ALREADY_EXISTS);
-            }
+		CreateAccount account = request.input;
 
-            Entity accountEntity = Entity.newBuilder(userKey)
-                    .set("user_username", account.username)
-                    .set("user_pwd", DigestUtils.sha512Hex(account.password))
-                    .set("user_email", account.email)
-                    .set("user_phone", account.phone)
-                    .set("user_address", account.address)
-                    .set("user_role", account.role)
-                    .set("user_creation_time", Timestamp.now())
-                    .build();
+		try {
+			Key userKey = datastore.newKeyFactory().setKind("User").newKey(account.username);
 
-            datastore.put(accountEntity);
+			Entity existingUser = datastore.get(userKey);
 
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("username", account.username);
-            data.put("role", account.role);
+			if (existingUser != null) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_ALREADY_EXISTS,
+						Errors.MSG_USER_ALREADY_EXISTS);
+			}
 
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("status", "success");
-            response.put("data", data);
+			Entity accountEntity = Entity.newBuilder(userKey).set("user_username", account.username)
+					.set("user_pwd", DigestUtils.sha512Hex(account.password)).set("user_email", account.email)
+					.set("user_phone", account.phone).set("user_address", account.address)
+					.set("user_role", account.role).set("user_creation_time", Timestamp.now()).build();
 
-            return Response.ok(g.toJson(response)).build();
+			datastore.put(accountEntity);
 
-        } catch (DatastoreException e) {
-            LOG.log(Level.SEVERE, e.toString(), e);
+			Map<String, Object> data = new LinkedHashMap<>();
+			data.put("username", account.username);
+			data.put("role", account.role);
 
-            return errorResponse(Response.Status.INTERNAL_SERVER_ERROR, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
-        }
-    }
+			Map<String, Object> response = new LinkedHashMap<>();
+			response.put("status", "success");
+			response.put("data", data);
 
-    @POST
-    @Path("/login")
-    @Consumes(MediaType.APPLICATION_JSON)
-    public Response login(LoginRequest request) {
+			return Response.ok(g.toJson(response)).build();
 
-        if (request == null || request.input == null || !request.input.isValidLogin()) {
-            return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
-        }
-        
-        LoginData login = request.input;
+		} catch (DatastoreException e) {
+			LOG.log(Level.SEVERE, e.toString(), e);
 
-        try {
-            Key userKey = datastore.newKeyFactory().setKind("User").newKey(login.username);
-            Entity userEntity = datastore.get(userKey);
+			return errorResponse(Response.Status.INTERNAL_SERVER_ERROR, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
+		}
+	}
 
-            if (userEntity == null) {
-                return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_NOT_FOUND, Errors.MSG_USER_NOT_FOUND);
-            }
+	@POST
+	@Path("/login")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response login(OperationRequest<LoginData> request) {
+		if (request == null || request.input == null || !request.input.isValidLogin()) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+		}
 
-            String storedPasswordHash = userEntity.getString("user_pwd");
-            String receivedPasswordHash = DigestUtils.sha512Hex(login.password);
+		LoginData login = request.input;
 
-            if (!storedPasswordHash.equals(receivedPasswordHash)) {
-                return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_CREDENTIALS, Errors.MSG_INVALID_CREDENTIALS);
-            }
+		try {
+			Key userKey = datastore.newKeyFactory().setKind("User").newKey(login.username);
+			Entity userEntity = datastore.get(userKey);
 
-            AuthToken token = new AuthToken(login.username);
-            String role = userEntity.getString("user_role");
+			if (userEntity == null) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_NOT_FOUND, Errors.MSG_USER_NOT_FOUND);
+			}
 
-            Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(token.tokenID);
+			String storedPasswordHash = userEntity.getString("user_pwd");
+			String receivedPasswordHash = DigestUtils.sha512Hex(login.password);
 
-            Entity tokenEntity = Entity.newBuilder(tokenKey)
-                    .set("token_id", token.tokenID)
-                    .set("token_username", token.username)
-                    .set("token_creationData", token.creationData)
-                    .set("token_expirationData", token.expirationData)
-                    .set("token_role", role)
-                    .build();
+			if (!storedPasswordHash.equals(receivedPasswordHash)) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_CREDENTIALS,
+						Errors.MSG_INVALID_CREDENTIALS);
+			}
 
-            datastore.put(tokenEntity);
+			AuthToken token = new AuthToken(login.username);
+			String role = userEntity.getString("user_role");
 
-            Map<String, Object> tokenData = new LinkedHashMap<>();
-            tokenData.put("tokenId", token.tokenID);
-            tokenData.put("userId", token.username);
-            tokenData.put("role", role);
-            tokenData.put("issuedAt", token.creationData);
-            tokenData.put("expiresAt", token.expirationData);
+			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(token.tokenID);
 
-            Map<String, Object> data = new LinkedHashMap<>();
-            data.put("token", tokenData);
+			Entity tokenEntity = Entity.newBuilder(tokenKey).set("token_id", token.tokenID)
+					.set("token_username", token.username).set("token_creationData", token.creationData)
+					.set("token_expirationData", token.expirationData).set("token_role", role).build();
 
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("status", "success");
-            response.put("data", data);
+			datastore.put(tokenEntity);
 
-            return Response.ok(g.toJson(response)).build();
+			Map<String, Object> tokenData = new LinkedHashMap<>();
+			tokenData.put("tokenId", token.tokenID);
+			tokenData.put("userId", token.username);
+			tokenData.put("role", role);
+			tokenData.put("issuedAt", token.creationData);
+			tokenData.put("expiresAt", token.expirationData);
 
-        } catch (DatastoreException e) {
-            LOG.log(Level.SEVERE, e.toString(), e);
-            return errorResponse(Response.Status.INTERNAL_SERVER_ERROR, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
-        }
-    }
+			Map<String, Object> data = new LinkedHashMap<>();
+			data.put("token", tokenData);
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    private Response errorResponse(Response.Status status, String errorCode, String message) {
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("status", errorCode);
-        response.put("data", message);
+			Map<String, Object> response = new LinkedHashMap<>();
+			response.put("status", "success");
+			response.put("data", data);
 
-        return Response.status(status).entity(g.toJson(response)).build();
-    }
+			return Response.ok(g.toJson(response)).build();
+
+		} catch (DatastoreException e) {
+			LOG.log(Level.SEVERE, e.toString(), e);
+			return errorResponse(Response.Status.INTERNAL_SERVER_ERROR, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
+		}
+	}
+
+	@POST
+	@Path("/showusers")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response showUsers(AuthenticatedRequest<EmptyInput> request) {
+
+		if (request == null || request.input == null || request.token == null || !request.token.isValidTokenFormat()) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+
+		try {
+			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
+			Entity tokenEntity = datastore.get(tokenKey);
+
+			if (tokenEntity == null) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+			}
+
+			TokenData storedToken = TokenData.fromEntity(tokenEntity);
+
+			if (!request.token.matchesStoredToken(storedToken)) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+			}
+
+			if (System.currentTimeMillis() > storedToken.expiresAt) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
+			}
+
+			if (!"ADMIN".equals(storedToken.role) && !"BOFFICER".equals(storedToken.role)) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.UNAUTHORIZED, Errors.MSG_UNAUTHORIZED);
+			}
+
+			Query<Entity> query = Query.newEntityQueryBuilder().setKind("User").build();
+
+			QueryResults<Entity> results = datastore.run(query);
+
+			List<Map<String, Object>> users = new ArrayList<>();
+
+			while (results.hasNext()) {
+				Entity user = results.next();
+
+				Map<String, Object> userData = new LinkedHashMap<>();
+				userData.put("userId", user.getKey().getName());
+				userData.put("username", user.getString("user_username"));
+				userData.put("email", user.getString("user_email"));
+				userData.put("role", user.getString("user_role"));
+
+				users.add(userData);
+			}
+
+			Map<String, Object> data = new LinkedHashMap<>();
+			data.put("users", users);
+
+			Map<String, Object> response = new LinkedHashMap<>();
+			response.put("status", "success");
+			response.put("data", data);
+
+			return Response.ok(g.toJson(response)).build();
+
+		} catch (Exception e) {
+			LOG.log(Level.SEVERE, e.toString(), e);
+			return errorResponse(Response.Status.INTERNAL_SERVER_ERROR, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
+		}
+	}
+
+	@POST
+	@Path("/deleteaccount")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response deleteAccount(AuthenticatedRequest<DeleteAccountData> request) {
+
+		if (request == null || request.input == null || !request.input.isValidDeleteAccount() || request.token == null
+				|| !request.token.isValidTokenFormat()) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+
+		try {
+			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
+			Entity tokenEntity = datastore.get(tokenKey);
+
+			if (tokenEntity == null) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+			}
+
+			TokenData storedToken = TokenData.fromEntity(tokenEntity);
+
+			if (!request.token.matchesStoredToken(storedToken)) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+			}
+
+			if (System.currentTimeMillis() > storedToken.expiresAt) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
+			}
+
+			if (!"ADMIN".equals(storedToken.role)) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.UNAUTHORIZED, Errors.MSG_UNAUTHORIZED);
+			}
+
+			Key userKey = datastore.newKeyFactory().setKind("User").newKey(request.input.userId);
+			Entity userEntity = datastore.get(userKey);
+
+			if (userEntity == null) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_NOT_FOUND, Errors.MSG_USER_NOT_FOUND);
+			}
+
+			datastore.delete(userKey);
+
+			Map<String, Object> data = new LinkedHashMap<>();
+			data.put("message", "Account deleted successfully");
+
+			Map<String, Object> response = new LinkedHashMap<>();
+			response.put("status", "success");
+			response.put("data", data);
+
+			return Response.ok(g.toJson(response)).build();
+
+		} catch (Exception e) {
+			LOG.log(Level.SEVERE, e.toString(), e);
+			return errorResponse(Response.Status.INTERNAL_SERVER_ERROR, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
+		}
+	}
+
+	private Response errorResponse(Response.Status status, String errorCode, String message) {
+		Map<String, Object> response = new LinkedHashMap<>();
+		response.put("status", errorCode);
+		response.put("data", message);
+
+		return Response.status(status).entity(g.toJson(response)).build();
+	}
 }
