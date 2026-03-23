@@ -38,10 +38,9 @@ import pt.unl.fct.di.adc.firstwebapp.util.AuthenticatedRequest;
 import pt.unl.fct.di.adc.firstwebapp.util.CreateAccount;
 import pt.unl.fct.di.adc.firstwebapp.util.Errors;
 import pt.unl.fct.di.adc.firstwebapp.util.LoginData;
-//import pt.unl.fct.di.adc.firstwebapp.util.CreateAccountRequest;
+import pt.unl.fct.di.adc.firstwebapp.util.ModifyAccountAttributesData;
 import pt.unl.fct.di.adc.firstwebapp.util.DeleteAccountData;
 import pt.unl.fct.di.adc.firstwebapp.util.EmptyInput;
-//import pt.unl.fct.di.adc.firstwebapp.util.LoginRequest;
 import pt.unl.fct.di.adc.firstwebapp.util.OperationRequest;
 import pt.unl.fct.di.adc.firstwebapp.util.TokenData;
 
@@ -281,6 +280,98 @@ public class AccountResource {
 			LOG.log(Level.SEVERE, e.toString(), e);
 			return errorResponse(Response.Status.INTERNAL_SERVER_ERROR, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
 		}
+	}
+
+	@POST
+	@Path("/modaccount")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response modifyAccountAttributes(AuthenticatedRequest<ModifyAccountAttributesData> request) {
+
+	    if (request == null || request.input == null || !request.input.isValidModifyAccountAttributes()
+	            || request.token == null || !request.token.isValidTokenFormat()) {
+	        return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+	    }
+
+	    try {
+	        Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
+	        Entity tokenEntity = datastore.get(tokenKey);
+
+	        if (tokenEntity == null) {
+	            return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+	        }
+
+	        TokenData storedToken = TokenData.fromEntity(tokenEntity);
+
+	        if (!request.token.matchesStoredToken(storedToken)) {
+	            return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+	        }
+
+	        if (System.currentTimeMillis() > storedToken.expiresAt) {
+	            return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
+	        }
+
+	        Key targetUserKey = datastore.newKeyFactory().setKind("User").newKey(request.input.userId);
+	        Entity targetUser = datastore.get(targetUserKey);
+
+	        if (targetUser == null) {
+	            return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_NOT_FOUND, Errors.MSG_USER_NOT_FOUND);
+	        } 
+
+	        String currentUsername = targetUser.getString("user_username");
+
+	        if (request.input.attributes.username != null
+	                && !request.input.attributes.username.isBlank()
+	                && !request.input.attributes.username.equals(currentUsername)) {
+	            return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+	        }
+
+	        String requesterRole = storedToken.role;
+	        String requesterUserId = storedToken.userId;
+	        String targetRole = targetUser.getString("user_role");
+
+	        boolean authorized = false;
+
+	        if ("ADMIN".equals(requesterRole)) {
+	            authorized = true;
+	        } else if ("USER".equals(requesterRole)) {
+	            authorized = requesterUserId.equals(request.input.userId);
+	        } else if ("BOFFICER".equals(requesterRole)) {
+	            authorized = requesterUserId.equals(request.input.userId) || "USER".equals(targetRole);
+	        }
+
+	        if (!authorized) {
+	            return errorResponse(Response.Status.BAD_REQUEST, Errors.UNAUTHORIZED, Errors.MSG_UNAUTHORIZED);
+	        }
+
+	        Entity.Builder updatedUserBuilder = Entity.newBuilder(targetUser);
+
+	        if (request.input.attributes.email != null && !request.input.attributes.email.isBlank()) {
+	            updatedUserBuilder.set("user_email", request.input.attributes.email);
+	        }
+
+	        if (request.input.attributes.phone != null && !request.input.attributes.phone.isBlank()) {
+	            updatedUserBuilder.set("user_phone", request.input.attributes.phone);
+	        }
+
+	        if (request.input.attributes.address != null && !request.input.attributes.address.isBlank()) {
+	            updatedUserBuilder.set("user_address", request.input.attributes.address);
+	        }
+
+	        datastore.put(updatedUserBuilder.build());
+
+	        Map<String, Object> data = new LinkedHashMap<>();
+	        data.put("message", "Updated successfully");
+
+	        Map<String, Object> response = new LinkedHashMap<>();
+	        response.put("status", "success");
+	        response.put("data", data);
+
+	        return Response.ok(g.toJson(response)).build();
+
+	    } catch (Exception e) {
+	        LOG.log(Level.SEVERE, e.toString(), e);
+	        return errorResponse(Response.Status.INTERNAL_SERVER_ERROR, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
+	    }
 	}
 
 	private Response errorResponse(Response.Status status, String errorCode, String message) {
