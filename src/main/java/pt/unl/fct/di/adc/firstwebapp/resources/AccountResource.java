@@ -21,7 +21,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 //import jakarta.ws.rs.core.Response.Status;
-import com.google.cloud.Timestamp;
+//import com.google.cloud.Timestamp;
 import com.google.cloud.datastore.Key;
 //import com.google.cloud.datastore.KeyFactory;
 //import com.google.cloud.datastore.PathElement;
@@ -335,13 +335,13 @@ public class AccountResource {
 
 	        TokenData storedToken = TokenData.fromEntity(tokenEntity);
 
-	        if (!request.token.matchesStoredToken(storedToken)) {
-	            return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
-	        }
-
 	        if (System.currentTimeMillis() > storedToken.expiresAt) {
 	            datastore.delete(tokenKey);
 	            return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
+	        }
+
+	        if (!request.token.matchesStoredToken(storedToken)) {
+	            return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
 	        }
 
 	        Key targetUserKey = datastore.newKeyFactory().setKind("User").newKey(request.input.username);
@@ -423,11 +423,10 @@ public class AccountResource {
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
 			}
 
-			// If manually deletion of users occur but the token persists
-			/**if (System.currentTimeMillis() > storedToken.expiresAt) {
-				datastore.delete(tokenKey);
+			if (System.currentTimeMillis() > storedToken.expiresAt) {
+				//datastore.delete(tokenKey);
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
-			}*/
+			}
 
 			Key requesterUserKey = datastore.newKeyFactory().setKind("User").newKey(storedToken.username);
 			Entity requesterUser = datastore.get(requesterUserKey);
@@ -526,9 +525,8 @@ public class AccountResource {
 			Key requesterUserKey = datastore.newKeyFactory().setKind("User").newKey(storedToken.username);
 			Entity requesterUser = datastore.get(requesterUserKey);
 
-			// If manually deletion of users occur but the token persists
 			if (requesterUser == null) {
-				datastore.delete(tokenKey);
+				//datastore.delete(tokenKey);
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
 			}
 
@@ -581,14 +579,14 @@ public class AccountResource {
 			}
 
 			TokenData storedToken = TokenData.fromEntity(tokenEntity);
-
+			
+			if (System.currentTimeMillis() > storedToken.expiresAt) {
+				//datastore.delete(tokenKey);
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
+			}
+			
 			if (!request.token.matchesStoredToken(storedToken)) {
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
-			}
-
-			if (System.currentTimeMillis() > storedToken.expiresAt) {
-				datastore.delete(tokenKey);
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 			}
 
 			if (!"ADMIN".equals(storedToken.role)) {
@@ -656,13 +654,13 @@ public class AccountResource {
 
 			TokenData storedToken = TokenData.fromEntity(tokenEntity);
 
+			if (System.currentTimeMillis() > storedToken.expiresAt) {
+				//datastore.delete(tokenKey);
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
+			}
+			
 			if (!request.token.matchesStoredToken(storedToken)) {
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
-			}
-
-			if (System.currentTimeMillis() > storedToken.expiresAt) {
-				datastore.delete(tokenKey);
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 			}
 
 			if (!storedToken.username.equals(request.input.username)) {
@@ -726,13 +724,13 @@ public class AccountResource {
 
 			TokenData storedToken = TokenData.fromEntity(tokenEntity);
 
-			if (!request.token.matchesStoredToken(storedToken)) {
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+			if (System.currentTimeMillis() > storedToken.expiresAt) {
+				//datastore.delete(tokenKey);
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 			}
 
-			if (System.currentTimeMillis() > storedToken.expiresAt) {
-				datastore.delete(tokenKey);
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
+			if (!request.token.matchesStoredToken(storedToken)) {
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
 			}
 
 			Key requesterUserKey = datastore.newKeyFactory().setKind("User").newKey(storedToken.username);
