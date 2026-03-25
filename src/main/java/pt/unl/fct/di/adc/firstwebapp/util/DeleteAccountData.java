@@ -6,8 +6,8 @@ public class DeleteAccountData{
     
     public DeleteAccountData(){}
     
-    public DeleteAccountData(String username) {
-    	this.userId = username;
+    public DeleteAccountData(String userId) {
+    	this.userId = userId;
     }
 	
     public boolean isValidDeleteAccount() {

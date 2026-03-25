@@ -4,22 +4,21 @@ import com.google.cloud.datastore.Entity;
 
 public class TokenData {
 
-	public String tokenId;
-	public String userId;
-	public String role;
-	public long issuedAt;
-	public long expiresAt;
+    public String tokenId;
+    public String username;
+    public String role;
+    public long issuedAt;
+    public long expiresAt;
 
-	public TokenData() {
-	}
+    public TokenData() {}
 
-	public TokenData(String tokenId, String userId, String role, long issuedAt, long expiresAt) {
-		this.tokenId = tokenId;
-		this.userId = userId;
-		this.role = role;
-		this.issuedAt = issuedAt;
-		this.expiresAt = expiresAt;
-	}
+    public TokenData(String tokenId, String username, String role, long issuedAt, long expiresAt) {
+        this.tokenId = tokenId;
+        this.username = username;
+        this.role = role;
+        this.issuedAt = issuedAt;
+        this.expiresAt = expiresAt;
+    }
 
 	private boolean nonEmptyOrBlank(String value) {
 		return value != null && !value.isBlank();
@@ -30,14 +29,14 @@ public class TokenData {
 	}
 
 	public boolean isValidTokenFormat() {
-		return nonEmptyOrBlank(tokenId) && nonEmptyOrBlank(userId) && nonEmptyOrBlank(role) && isRoleValid(role)
+		return nonEmptyOrBlank(tokenId) && nonEmptyOrBlank(username) && nonEmptyOrBlank(role) && isRoleValid(role)
 				&& issuedAt > 0 && expiresAt > 0 && expiresAt > issuedAt;
 	}
 
 	public boolean matchesStoredToken(TokenData storedToken) {
 		return storedToken != null
 				&& tokenId.equals(storedToken.tokenId)
-				&& userId.equals(storedToken.userId)
+				&& username.equals(storedToken.username)
 				&& role.equals(storedToken.role)
 				&& issuedAt == storedToken.issuedAt
 				&& expiresAt == storedToken.expiresAt;
