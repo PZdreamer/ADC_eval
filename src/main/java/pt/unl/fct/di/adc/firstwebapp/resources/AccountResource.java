@@ -75,14 +75,13 @@ public class AccountResource {
 			Entity existingUser = datastore.get(userKey);
 
 			if (existingUser != null) {
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_ALREADY_EXISTS,
-						Errors.MSG_USER_ALREADY_EXISTS);
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_ALREADY_EXISTS, Errors.MSG_USER_ALREADY_EXISTS);
 			}
 
 			Entity accountEntity = Entity.newBuilder(userKey).set("user_username", account.username)
 					.set("user_pwd", DigestUtils.sha512Hex(account.password)).set("user_phone", account.phone)
 					.set("user_address", account.address).set("user_role", account.role)
-					.set("user_creation_time", Timestamp.now()).build();
+					.build();
 
 			datastore.put(accountEntity);
 
@@ -107,8 +106,9 @@ public class AccountResource {
 	@Path("/login")
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response login(OperationRequest<LoginData> request) {
+		
 		if (request == null || request.input == null || !request.input.isValidLogin()) {
-			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_NOT_FOUND, Errors.MSG_USER_NOT_FOUND);
 		}
 
 		LoginData login = request.input;
@@ -133,9 +133,12 @@ public class AccountResource {
 
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(token.tokenID);
 
-			Entity tokenEntity = Entity.newBuilder(tokenKey).set("token_id", token.tokenID)
-					.set("token_username", token.username).set("token_creationData", token.creationData)
-					.set("token_expirationData", token.expirationData).set("token_role", role).build();
+			Entity tokenEntity = Entity.newBuilder(tokenKey)
+					.set("token_username", token.username)
+					.set("token_creationData", token.creationData)
+					.set("token_expirationData", token.expirationData)
+					.set("token_role", role)
+					.build();
 
 			datastore.put(tokenEntity);
 
@@ -166,10 +169,14 @@ public class AccountResource {
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response showUsers(AuthenticatedRequest<EmptyInput> request) {
 
-		if (request == null || request.input == null || request.token == null || !request.token.isValidTokenFormat()) {
-			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		if (request == null || request.input == null) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
 		}
 
+		if (request.token == null || !request.token.isValidTokenFormat()) {
+		    return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+		
 		try {
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 			Entity tokenEntity = datastore.get(tokenKey);
@@ -228,11 +235,14 @@ public class AccountResource {
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response deleteAccount(AuthenticatedRequest<DeleteAccountData> request) {
 
-		if (request == null || request.input == null || !request.input.isValidDeleteAccount() || request.token == null
-				|| !request.token.isValidTokenFormat()) {
+		if (request == null || request.input == null || !request.input.isValidDeleteAccount()) {
 			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
 		}
 
+		if (request.token == null || !request.token.isValidTokenFormat()) {
+		    return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+		
 		try {
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 			Entity tokenEntity = datastore.get(tokenKey);
@@ -264,7 +274,7 @@ public class AccountResource {
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.UNAUTHORIZED, Errors.MSG_UNAUTHORIZED);
 			}
 
-			Key userKey = datastore.newKeyFactory().setKind("User").newKey(request.input.userId);
+			Key userKey = datastore.newKeyFactory().setKind("User").newKey(request.input.username);
 			Entity userEntity = datastore.get(userKey);
 
 			if (userEntity == null) {
@@ -280,7 +290,7 @@ public class AccountResource {
 
 				String tokenUserId = sessionToken.getString("token_username");
 
-				if (request.input.userId.equals(tokenUserId)) {
+				if (request.input.username.equals(tokenUserId)) {
 					datastore.delete(sessionToken.getKey());
 				}
 			}
@@ -303,15 +313,18 @@ public class AccountResource {
 	}
 
 	@POST
-	@Path("/modifyaccountattributes")
+	@Path("/modaccount")
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response modifyAccountAttributes(AuthenticatedRequest<ModifyAccountAttributesData> request) {
 
-	    if (request == null || request.input == null || !request.input.isValidModifyAccountAttributes()
-	            || request.token == null || !request.token.isValidTokenFormat()) {
+	    if (request == null || request.input == null || !request.input.isValidModifyAccountAttributes()) {
 	        return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
 	    }
 
+	    if (request.token == null || !request.token.isValidTokenFormat()) {
+	        return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+	    }
+	    
 	    try {
 	        Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 	        Entity tokenEntity = datastore.get(tokenKey);
@@ -384,14 +397,18 @@ public class AccountResource {
 	}
 	
 	@POST
-	@Path("/showsessions")
+	@Path("/showauthsessions")
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response showAuthenticatedSessions(AuthenticatedRequest<EmptyInput> request) {
 
-		if (request == null || request.input == null || request.token == null || !request.token.isValidTokenFormat()) {
-			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		if (request == null || request.input == null) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
 		}
 
+		if (request.token == null || !request.token.isValidTokenFormat()) {
+		    return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+		
 		try {
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 			Entity tokenEntity = datastore.get(tokenKey);
@@ -407,10 +424,10 @@ public class AccountResource {
 			}
 
 			// If manually deletion of users occur but the token persists
-			if (System.currentTimeMillis() > storedToken.expiresAt) {
+			/**if (System.currentTimeMillis() > storedToken.expiresAt) {
 				datastore.delete(tokenKey);
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
-			}
+			}*/
 
 			Key requesterUserKey = datastore.newKeyFactory().setKind("User").newKey(storedToken.username);
 			Entity requesterUser = datastore.get(requesterUserKey);
@@ -436,18 +453,19 @@ public class AccountResource {
 				String sessionUsername = session.getString("token_username");
 				long expiresAt = session.getLong("token_expirationData");
 
-				if (System.currentTimeMillis() > expiresAt) {
+				/**if (System.currentTimeMillis() > expiresAt) {
 					datastore.delete(session.getKey());
 					continue;
-				}
+				
 
 				Key sessionUserKey = datastore.newKeyFactory().setKind("User").newKey(sessionUsername);
 				Entity sessionUser = datastore.get(sessionUserKey);
 
+				
 				if (sessionUser == null) {
 					datastore.delete(session.getKey());
 					continue;
-				}
+				}*/
 
 				Map<String, Object> sessionData = new LinkedHashMap<>();
 				sessionData.put("tokenId", session.getKey().getName());
@@ -478,10 +496,14 @@ public class AccountResource {
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response showUserRole(AuthenticatedRequest<ShowUserRoleData> request) {
 
-		if (request == null || request.input == null || !request.input.isValidUserRole() || request.token == null || !request.token.isValidTokenFormat()) {
+		if (request == null || request.input == null || !request.input.isValid()) {
 			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
 		}
 
+		if (request.token == null || !request.token.isValidTokenFormat()) {
+		    return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+		
 		try {
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 			Entity tokenEntity = datastore.get(tokenKey);
@@ -542,11 +564,14 @@ public class AccountResource {
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response changeUserRole(AuthenticatedRequest<ChangeUserRoleData> request) {
 
-		if (request == null || request.input == null || !request.input.isValidChangeUserRole() || request.token == null
-				|| !request.token.isValidTokenFormat()) {
-			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+		if (request == null || request.input == null || !request.input.isValidChangeUserRole()) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
 		}
 
+		if (request.token == null || !request.token.isValidTokenFormat()) {
+		    return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+		
 		try {
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 			Entity tokenEntity = datastore.get(tokenKey);
@@ -581,6 +606,18 @@ public class AccountResource {
 			updatedUserBuilder.set("user_role", request.input.newRole);
 			datastore.put(updatedUserBuilder.build());
 
+			Query<Entity> tokenQuery = Query.newEntityQueryBuilder().setKind("Token").build();
+			QueryResults<Entity> tokenResults = datastore.run(tokenQuery);
+
+			while (tokenResults.hasNext()) {
+				Entity sessionToken = tokenResults.next();
+				String tokenUsername = sessionToken.getString("token_username");
+
+				if (request.input.username.equals(tokenUsername)) {
+					datastore.delete(sessionToken.getKey());
+				}
+			}
+			
 			Map<String, Object> data = new LinkedHashMap<>();
 			data.put("message", "Role updated successfully");
 
@@ -597,15 +634,18 @@ public class AccountResource {
 	}
 
 	@POST
-	@Path("/changeuserpassword")
+	@Path("/changeuserpwd")
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response changeUserPassword(AuthenticatedRequest<ChangeUserPasswordData> request) {
 
-		if (request == null || request.input == null || !request.input.isValidChangeUserPassword()
-				|| request.token == null || !request.token.isValidTokenFormat()) {
-			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+		if (request == null || request.input == null || !request.input.isValidChangeUserPassword()) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
 		}
 
+		if (request.token == null || !request.token.isValidTokenFormat()) {
+		    return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+		
 		try {
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 			Entity tokenEntity = datastore.get(tokenKey);
@@ -633,7 +673,7 @@ public class AccountResource {
 			Entity targetUser = datastore.get(targetUserKey);
 
 			if (targetUser == null) {
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.USER_NOT_FOUND, Errors.MSG_USER_NOT_FOUND);
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
 			}
 
 			String targetStoredPasswordHash = targetUser.getString("user_pwd");
@@ -668,11 +708,14 @@ public class AccountResource {
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response logout(AuthenticatedRequest<LogoutData> request) {
 
-		if (request == null || request.input == null || !request.input.isValidLogout() || request.token == null
-				|| !request.token.isValidTokenFormat()) {
-			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+		if (request == null || request.input == null || !request.input.isValidLogout()) {
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
 		}
 
+		if (request.token == null || !request.token.isValidTokenFormat()) {
+		    return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+		}
+		
 		try {
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 			Entity tokenEntity = datastore.get(tokenKey);
@@ -696,7 +739,7 @@ public class AccountResource {
 			Entity requesterUser = datastore.get(requesterUserKey);
 
 			if (requesterUser == null) {
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
 			}
 
 			if (!"ADMIN".equals(storedToken.role) && !storedToken.username.equals(request.input.username)) {
@@ -721,7 +764,7 @@ public class AccountResource {
 			}
 
 			if (!deletedAny) {
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+				return errorResponse(Response.Status.BAD_REQUEST, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
 			}
 
 			Map<String, Object> data = new LinkedHashMap<>();
@@ -744,6 +787,6 @@ public class AccountResource {
 		response.put("status", errorCode);
 		response.put("data", message);
 
-		return Response.status(status).entity(g.toJson(response)).build();
+		return Response.ok(g.toJson(response)).build();
 	}
 }

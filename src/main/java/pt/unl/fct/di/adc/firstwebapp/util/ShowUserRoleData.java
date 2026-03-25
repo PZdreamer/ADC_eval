@@ -18,7 +18,7 @@ public class ShowUserRoleData{
 		return value != null && value.contains("@");
 	}
 	
-	public boolean isValidUserRole() {
+	public boolean isValid() {
 		return nonEmptyOrBlank(username) && isValidEmailFormat(username);
 	}
 	}

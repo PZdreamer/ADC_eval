@@ -2,15 +2,15 @@ package pt.unl.fct.di.adc.firstwebapp.util;
 
 public class DeleteAccountData{
 	
-    public String userId;
+    public String username;
     
     public DeleteAccountData(){}
     
     public DeleteAccountData(String userId) {
-    	this.userId = userId;
+    	this.username = userId;
     }
 	
     public boolean isValidDeleteAccount() {
-        return userId != null && !userId.isBlank();
+        return username != null && !username.isBlank();
     }
 }
