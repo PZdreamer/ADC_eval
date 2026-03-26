@@ -13,25 +13,17 @@ import com.google.cloud.datastore.QueryResults;
 import org.apache.commons.codec.digest.DigestUtils;
 
 import jakarta.ws.rs.Consumes;
-//import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
-//import jakarta.ws.rs.PathParam;
-//import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-//import jakarta.ws.rs.core.Response.Status;
-//import com.google.cloud.Timestamp;
 import com.google.cloud.datastore.Key;
-//import com.google.cloud.datastore.KeyFactory;
-//import com.google.cloud.datastore.PathElement;
 import com.google.cloud.datastore.Datastore;
 import com.google.cloud.datastore.DatastoreException;
 import com.google.cloud.datastore.DatastoreOptions;
 import com.google.cloud.datastore.Entity;
 import com.google.gson.Gson;
 
-import pt.unl.fct.di.adc.firstwebapp.util.AuthToken;
 import pt.unl.fct.di.adc.firstwebapp.util.AuthenticatedRequest;
 import pt.unl.fct.di.adc.firstwebapp.util.ChangeUserPasswordData;
 import pt.unl.fct.di.adc.firstwebapp.util.ChangeUserRoleData;
@@ -51,8 +43,7 @@ public class AccountResource {
 
 	private static final Logger LOG = Logger.getLogger(AccountResource.class.getName());
 
-	private static final Datastore datastore = DatastoreOptions.newBuilder().setProjectId("adc-pei-2526").build()
-			.getService();
+	private static final Datastore datastore = DatastoreOptions.newBuilder().setProjectId("adc-pei-2526").build().getService();
 
 	private final Gson g = new Gson();
 
@@ -128,26 +119,26 @@ public class AccountResource {
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_CREDENTIALS, Errors.MSG_INVALID_CREDENTIALS);
 			}
 
-			AuthToken token = new AuthToken(login.username);
 			String role = userEntity.getString("user_role");
+	        TokenData token = TokenData.createNew(login.username, role);
 
-			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(token.tokenID);
+			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(token.tokenId);
 
 			Entity tokenEntity = Entity.newBuilder(tokenKey)
 					.set("token_username", token.username)
-					.set("token_creationData", token.creationData)
-					.set("token_expirationData", token.expirationData)
+					.set("token_creationData", token.issuedAt)
+					.set("token_expirationData", token.expiresAt)
 					.set("token_role", role)
 					.build();
 
 			datastore.put(tokenEntity);
 
 			Map<String, Object> tokenData = new LinkedHashMap<>();
-			tokenData.put("tokenId", token.tokenID);
+			tokenData.put("tokenId", token.tokenId);
 			tokenData.put("username", token.username);
 			tokenData.put("role", role);
-			tokenData.put("issuedAt", token.creationData);
-			tokenData.put("expiresAt", token.expirationData);
+			tokenData.put("issuedAt", token.issuedAt);
+			tokenData.put("expiresAt", token.expiresAt);
 
 			Map<String, Object> data = new LinkedHashMap<>();
 			data.put("token", tokenData);
@@ -236,7 +227,7 @@ public class AccountResource {
 	public Response deleteAccount(AuthenticatedRequest<DeleteAccountData> request) {
 
 		if (request == null || request.input == null || !request.input.isValidDeleteAccount()) {
-			return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_INPUT, Errors.MSG_INVALID_INPUT);
+			return errorResponse(Response.Status.BAD_REQUEST, Errors.FORBIDDEN, Errors.MSG_FORBIDDEN);
 		}
 
 		if (request.token == null || !request.token.isValidTokenFormat()) {
@@ -247,6 +238,7 @@ public class AccountResource {
 			Key tokenKey = datastore.newKeyFactory().setKind("Token").newKey(request.token.tokenId);
 			Entity tokenEntity = datastore.get(tokenKey);
 
+			
 			if (tokenEntity == null) {
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
 			}
@@ -262,14 +254,6 @@ public class AccountResource {
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 			}
 
-			Key requesterUserKey = datastore.newKeyFactory().setKind("User").newKey(storedToken.username);
-			Entity requesterUser = datastore.get(requesterUserKey);
-
-			if (requesterUser == null) {
-				datastore.delete(tokenKey);
-				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
-			}
-
 			if (!"ADMIN".equals(storedToken.role)) {
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.UNAUTHORIZED, Errors.MSG_UNAUTHORIZED);
 			}
@@ -282,14 +266,11 @@ public class AccountResource {
 			}
 
 			Query<Entity> tokenQuery = Query.newEntityQueryBuilder().setKind("Token").build();
-
 			QueryResults<Entity> tokenResults = datastore.run(tokenQuery);
 
 			while (tokenResults.hasNext()) {
 				Entity sessionToken = tokenResults.next();
-
 				String tokenUserId = sessionToken.getString("token_username");
-
 				if (request.input.username.equals(tokenUserId)) {
 					datastore.delete(sessionToken.getKey());
 				}
@@ -335,13 +316,12 @@ public class AccountResource {
 
 	        TokenData storedToken = TokenData.fromEntity(tokenEntity);
 
-	        if (System.currentTimeMillis() > storedToken.expiresAt) {
-	            datastore.delete(tokenKey);
-	            return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
-	        }
-
 	        if (!request.token.matchesStoredToken(storedToken)) {
 	            return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
+	        }
+	        
+	        if (System.currentTimeMillis() > storedToken.expiresAt) {
+	            return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 	        }
 
 	        Key targetUserKey = datastore.newKeyFactory().setKind("User").newKey(request.input.username);
@@ -424,7 +404,6 @@ public class AccountResource {
 			}
 
 			if (System.currentTimeMillis() > storedToken.expiresAt) {
-				//datastore.delete(tokenKey);
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 			}
 
@@ -452,20 +431,10 @@ public class AccountResource {
 				String sessionUsername = session.getString("token_username");
 				long expiresAt = session.getLong("token_expirationData");
 
-				/**if (System.currentTimeMillis() > expiresAt) {
-					datastore.delete(session.getKey());
+				if (System.currentTimeMillis() > expiresAt){
 					continue;
+					}
 				
-
-				Key sessionUserKey = datastore.newKeyFactory().setKind("User").newKey(sessionUsername);
-				Entity sessionUser = datastore.get(sessionUserKey);
-
-				
-				if (sessionUser == null) {
-					datastore.delete(session.getKey());
-					continue;
-				}*/
-
 				Map<String, Object> sessionData = new LinkedHashMap<>();
 				sessionData.put("tokenId", session.getKey().getName());
 				sessionData.put("username", sessionUsername);
@@ -526,7 +495,6 @@ public class AccountResource {
 			Entity requesterUser = datastore.get(requesterUserKey);
 
 			if (requesterUser == null) {
-				//datastore.delete(tokenKey);
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.INVALID_TOKEN, Errors.MSG_INVALID_TOKEN);
 			}
 
@@ -581,7 +549,6 @@ public class AccountResource {
 			TokenData storedToken = TokenData.fromEntity(tokenEntity);
 			
 			if (System.currentTimeMillis() > storedToken.expiresAt) {
-				//datastore.delete(tokenKey);
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 			}
 			
@@ -655,7 +622,6 @@ public class AccountResource {
 			TokenData storedToken = TokenData.fromEntity(tokenEntity);
 
 			if (System.currentTimeMillis() > storedToken.expiresAt) {
-				//datastore.delete(tokenKey);
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 			}
 			
@@ -725,7 +691,6 @@ public class AccountResource {
 			TokenData storedToken = TokenData.fromEntity(tokenEntity);
 
 			if (System.currentTimeMillis() > storedToken.expiresAt) {
-				//datastore.delete(tokenKey);
 				return errorResponse(Response.Status.BAD_REQUEST, Errors.TOKEN_EXPIRED, Errors.MSG_TOKEN_EXPIRED);
 			}
 

@@ -11,8 +11,7 @@ public class CreateAccount {
 
     public CreateAccount() {}
 
-    public CreateAccount(String username, String password, String confirmation,
-                         String phone, String address, String role) {
+    public CreateAccount(String username, String password, String confirmation, String phone, String address, String role) {
         this.username = username;
         this.password = password;
         this.confirmation = confirmation;
