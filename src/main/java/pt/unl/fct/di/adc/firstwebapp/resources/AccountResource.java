@@ -44,8 +44,7 @@ public class AccountResource {
 
 	private static final Logger LOG = Logger.getLogger(AccountResource.class.getName());
 
-	private static final Datastore datastore = DatastoreOptions.newBuilder().setProjectId("adc-pei-2526").build()
-			.getService();
+	private static final Datastore datastore = DatastoreOptions.newBuilder().setProjectId("adc-pei-2526").build().getService();
 
 	private final Gson g = new Gson();
 
